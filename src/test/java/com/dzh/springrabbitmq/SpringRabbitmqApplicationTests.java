@@ -23,16 +23,28 @@ class SpringRabbitmqApplicationTests {
      * 生产者发布消息
      */
     @Test
-    void publish() throws IOException, TimeoutException {
+    void publish() throws IOException, TimeoutException, InterruptedException {
         //1.获取连接
         Connection connection = RabbitMQ.getConnection();
         //2.创建连接管道
         Channel channel = connection.createChannel();
 
+        channel.confirmSelect();
+
         //3.发布消息
         String msg = "干嘛呢";
-        channel.basicPublish("", HELLO,null,msg.getBytes());
+        channel.basicPublish("", HELLO, null, msg.getBytes());
+
+        //消息发布完成后，确认消息是否投递到交换机
+        if (channel.waitForConfirms()) {
+            System.out.println("消息投递到交换机啦 OK");
+        } else {
+            System.out.println("消息投递失败了 FAIL");
+            channel.basicPublish("", HELLO, null, msg.getBytes());
+
+        }
         System.out.println("生产者发布消息成功");
+
 
         //4.关闭资源
         channel.close();
@@ -52,10 +64,10 @@ class SpringRabbitmqApplicationTests {
         Channel channel = connection.createChannel();
 
         //3.管道绑定
-        channel.queueDeclare(HELLO,true,false,false,null);
+        channel.queueDeclare(HELLO, true, false, true, null);
 
         //4.消费
-        channel.basicConsume(HELLO,new DefaultConsumer(channel){
+        channel.basicConsume(HELLO, true, new DefaultConsumer(channel) {
             @Override
             public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
                 //body 就是消费者消费的消费对象
@@ -64,9 +76,11 @@ class SpringRabbitmqApplicationTests {
             }
 
         });
+
         System.out.println("消费者开始监听队列！");
         System.in.read();
-        channel.close();;
+        channel.close();
+
         connection.close();
 
     }
